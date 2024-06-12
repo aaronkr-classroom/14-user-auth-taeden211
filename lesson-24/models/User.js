@@ -76,6 +76,9 @@ const mongoose = require("mongoose"),
  * Listing 24.3 (p. 353)
  * passport-local-mongoose 플러그인을 사용자 스키마에 추가
  */
+userSchema.plugin(passportLocalMongoose, {
+  usernameField:"email"
+});
 // 이메일 주소를 사용자 이름으로 사용
 
 /**

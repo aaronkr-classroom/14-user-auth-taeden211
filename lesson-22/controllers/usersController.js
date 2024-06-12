@@ -71,29 +71,26 @@ module.exports = {
    * 메시지들을 연결했기 때문에 메시지들은 결국 응답 객체로 연결된다.
    */
   create: (req, res, next) => {
-    let userParams = {
-      name: {
-        first: req.body.first,
-        last: req.body.last,
-      },
-      email: req.body.email,
-      username: req.body.username,
-      password: req.body.password,
-      profileImg: req.body.profileImg,
-    };
+    let userParams = getUserParams(req.body);
     // @TODO: getUserParams 사용 - Listing 22.3 (p. 328)
     // 폼 파라미터로 사용자 생성
     User.create(userParams)
       .then((user) => {
         res.locals.redirect = "/users";
         res.locals.user = user;
-        // @TODO: 플래시 메시지 추가 - Listing 22.3 (p. 328)
+        req.flash(
+          "success",
+          `${user.fullName}'s account created!`
+        )
         next();
       })
       .catch((error) => {
         console.log(`Error saving user: ${error.message}`);
         res.locals.redirect = "/users/new";
-        // @TODO: 플래시 메시지 추가 - Listing 22.3 (p. 328)
+        req.flash(
+          "error",
+          `Failed to create account; ${error.message}`
+        );
         next(error);
       });
   },

@@ -5,24 +5,20 @@
  * Listing 18.11 (p. 271)
  * userController.js에서 인덱스 액션 생성과 index 액션의 재방문
  */
-const passport = require("passport"),
-  User = require("../models/User.TODO"); // 사용자 모델 요청
+const User = require("../models/User"); // 사용자 모델 요청
 
 /**
- * Listing 22.3 (p. 328)
- * userController.js에서 create액션이 플래시 메시지를 추가
- *
  * [노트] getUserParams는 이전 캡스톤 프로젝트 (21장)에서 사용돼 왔다. 이 함수는 컨트롤러를 통해
  * 재사용돼 사용자 속성을 하나의 객체로 구성한다. 동일한 함수를 다른 모델 컨트롤러에도 구성해야 한다.
  */
 const getUserParams = (body) => {
   return {
-    username: body.username,
     name: {
       first: body.first,
       last: body.last,
     },
     email: body.email,
+    username: body.username,
     password: body.password,
     profileImg: body.profileImg,
   };
@@ -30,35 +26,61 @@ const getUserParams = (body) => {
 
 module.exports = {
   /**
+   * @TODO: login 액션
+   *
    * Listing 23.3 (p. 336)
    * userController.js로의 로그인과 인증 액션 추가
    */
-  login: (req, res) => {
+
+  login: (req,res) => {
     res.render("users/login", {
-      page: "login",
-      title: "Login",
+      page:"login",
+      title:"Login"
     });
   },
 
-  /**
-   * @TODO:
-   * 
-   * Listing 24.5 (p. 356)
-   * usersController.js에서 passport 인증 미들웨어 추가
-   * 원래 있는 코드는 다 지우고 아래 코드로 대체
-   */
+  authenticate:(req,res,next) => {
+    User.findOne({email: req.body.email})
+      .then(user =>{
+        if(user) {
+          user.passwordCompare(req.body.password)
+          .then(pwMatch => { 
+            if (pwMatch) {
+              res.locals.redirect=`/users/${user._id}`;
+              req.flash(
+                "success",
+                "Login success!"
+              );
 
-  // local strategy로 사용자를 인증하기 위해 passport 호출
-  // authenticate: {...}  
-  // passport의 authenticate 메소드를 사용해 사용자 인증
+          }else{
+            res.locals.redirect="/users/login";
+            req.flash(
+              "error",
+              "Login failed : User not found."
+          );
+        }
+        next();
 
-  /**
-   * @TODO:
-   * 
-   * Listing 24.8 (p. 359)
-   * usersController.js에서 logout 액션 추가
-   */
-  // logout: {...}
+        })
+        .catch(error => {
+          console.log(`Error logging in : ${error.message}`);
+          next(error);
+        });
+      } else {
+          res.locals.redirect="/users/login";
+          req.flash(
+            "error",
+            "Login failed : User not found."
+          );
+          next();
+        }
+
+        })
+        .catch(error => {
+          console.log(`Error logging in : ${error.message}`);
+          next(error);
+        });
+      },
 
   index: (req, res, next) => {
     User.find() // index 액션에서만 퀴리 실행
@@ -110,57 +132,66 @@ module.exports = {
    * 메시지들을 연결했기 때문에 메시지들은 결국 응답 객체로 연결된다.
    */
   create: (req, res, next) => {
-    if (req.skip) next(); // 유효성 체크를 통과하지 못하면 다음 미들웨어 함수로 전달
-
-    let newUser = new User(getUserParams(req.body)); // Listing 22.3 (p. 328)
-
-    /**
-     * @TODO:
-     * 
-     * Listing 24.4 (p. 355)
-     * usersController.js에서 create 액션에서의 새로운 사용자 등록
-     * 원래 있는 코드는 다 지우고 아래 코드로 대체
-     */
-    // User.register();
+    let userParams = getUserParams(req.body); // Listing 22.3 (p. 328)
+    // 폼 파라미터로 사용자 생성
+    User.create(userParams)
+      .then((user) => {
+        req.flash(
+          "success",
+          `${user.fullName}'s account created successfully!`
+        ); // Listing 22.3 (p. 328)
+        res.locals.redirect = "/users";
+        res.locals.user = user;
+        next();
+      })
+      .catch((error) => {
+        console.log(`Error saving user: ${error.message}`);
+        res.locals.redirect = "/users/new";
+        req.flash(
+          "error",
+          `Failed to create user account because: ${error.message}.`
+        ); // Listing 22.3 (p. 328)
+        next(error);
+      });
   },
 
   /**
+   * @TODO: validate 액션
+   *
    * Listing 23.7 (p. 346)
    * userController.js에서 validate 액션 추가
    */
-  validate: (req, res, next) => {
-    // 사용자가 입력한 이메일 주소가 유효한지 확인
+
+  validate: (req,res,next) => {
     req
       .sanitizeBody("email")
-      .normalizeEmail({
-        all_lowercase: true,
+      .normarlizeEmail({
+        all_lowercase:true
       })
-      .trim(); // trim()으로 whitespace 제거
-    req.check("email", "Email is invalid").isEmail();
-    // req
-    //   .check("zipCode", "Zip code is invalid")
-    //   .notEmpty()
-    //   .isInt()
-    //   .isLength({
-    //     min: 5,
-    //     max: 5,
-    //   })
-    //   .equals(req.body.zipCode); // zipCode 값의 유효성 체크
-    req.check("password", "Password cannot be empty").notEmpty(); // password 필드 유효성 체크
+      .trim()
+      .check("email", "Email is invalid")
+      .isEmail();
 
-    // 사용자가 입력한 비밀번호가 일치하는지 확인
-    req.getValidationResult().then((error) => {
-      // 앞에서의 유효성 체크 결과 수집
-      if (!error.isEmpty()) {
-        let messages = error.array().map((e) => e.msg);
-        req.skip = true; // skip 속성을 true로 설정
-        req.flash("error", messages.join(" and ")); // 에러 플래시 메시지로 추가
-        res.locals.redirect = "/users/new"; // new 뷰로 리디렉션 설정
+    req
+      .check("password", "password cannot be empty")
+      .notEmpty();
+
+    req.getValidationResult()
+      .then(result => {
+        if(!result.isEmpty()) {
+          let messages = result.array().map()(m =>m.msg);
+          req.skip = true;
+          req.flash("error", messages.join("and"));
+          res.locals.redirect = "/user/new";
+        } 
         next();
-      } else {
-        next(); // 다음 미들웨어 함수 호출
-      }
-    });
+      
+      })
+      .catch(error => {
+        console.log(`Error : ${error.message}`);
+        next(error);
+      });
+    
   },
   /**
    * [노트] 폼 데이터를 다시 채우기 위해 다양한 방법을 선택할 수 있다. (연구해보면)
@@ -230,7 +261,16 @@ module.exports = {
   // update 액션 추가
   update: (req, res, next) => {
     let userId = req.params.id,
-      userParams = getUserParams(req.body);
+      userParams = {
+        name: {
+          first: req.body.first,
+          last: req.body.last,
+        },
+        email: req.body.email,
+        username: req.body.username,
+        password: req.body.password,
+        profileImg: req.body.profileImg,
+      }; // 요청으로부터 사용자 파라미터 취득
 
     User.findByIdAndUpdate(userId, {
       $set: userParams,
